@@ -1,4 +1,4 @@
-# Metropolis-optimisation
+# Graph partitioning using Metropolis optimisation
 A coding project that groups the provinces of Spain into 7 territories of equal population. Using the Metropolis algorithm, it divides a provincial map into 7 contiguous regions by minimising the deviation from the mean population.
 
 ## Repository structure:
