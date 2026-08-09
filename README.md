@@ -2,8 +2,8 @@
 A coding project that groups the provinces of Spain into 7 territories of equal population. Using the Metropolis algorithm, it divides a provincial map into 7 contiguous regions by minimising the deviation from the mean population. Solving this problem is important for electoral districting in some countries and might be useful in logistics and public administration.
 
 ## Repository structure:
-- Projecte geopandas v3.py: Main code
-- Dataframe_previ.pkl: Graph and population data. 
+- `Projecte geopandas v3.py`: Main code
+- `Dataframe_previ.pkl`: Graph and population data. 
 
 | Column | Type | Description |
 |---|---|---|
@@ -15,11 +15,11 @@ A coding project that groups the provinces of Spain into 7 territories of equal 
 | POPULATION | integer | Population of the province |
 | VESINS | list | Neighbouring provinces. Adjacency list of the graph |
 
-- Requirements.txt: list of necessary libraries and their versions
-- README.md: this file
-- Convergence.png: example plot showing how the optimiser converges
-- Configuration.png: example of map configuration found by the optimiser
-- Graph.png: plot showing how the provinces are connected 
+- `Requirements.txt`: list of necessary libraries and their versions
+- `README.md`: this file
+- `Convergence.png`: example plot showing how the optimiser converges
+- `Configuration.png`: example of map configuration found by the optimiser
+- `Graph.png`: plot showing how the provinces are connected 
 
 ## Code description 
 - Create a graph with rook connectivity using libpysal.
