@@ -8,15 +8,16 @@ from libpysal.weights import W, Rook, KNN
 import matplotlib.pyplot as plt
 import networkx as nx
 import geopandas
-import scipy as sp
 import numpy as np
 import random
 import pandas
 
-
+seed = 2
+np.random.seed(seed)
+random.seed(seed)
 
 #the pkl file contains all the neighbour-node relationships encoded in the VESINS column
-european = pandas.read_pickle(r'/home/sergi/Documents/Dataframe_previ.pkl')
+european = pandas.read_pickle(r'/home/sergi/Documents/Dataframe_previ.pkl') #this path works for me, likely won't work for you
 
 #this libpysal part is only used to plot the graph (plot 3)
 #the annealing part builds the graph using the pkl file
@@ -203,13 +204,7 @@ def flipexecute(canvi, agregat_vell):
     preservacio = agregat_vell[agregat_vell['Membres'] > 1].index.tolist()
     #territories that contain only 1 region are at risk of extinction if they are flipped and accepted
     #these territories are excludad from the list of candidates that can be flipped
-    '''
-    an alternative version could be set were territories are allowed to go extinct so the number of territories
-    at the end of the optimisation is allowed to float. It would make the set up easier, as you could start with
-    as many territories as there are regions. However, I have not studied the stability of this. There is a risk
-    of everything getting clumped into the same territory, and that would technically have 0 deviation from the
-    mean. In general, this implementation would be biased towards a low number of territories. 
-    '''
+
     candidats_flip = canvi[canvi['TERRITORY_ID'].isin(preservacio)] #candidates to have its ID flipped
     
     clusters = 2
@@ -307,26 +302,48 @@ while european['TERRITORY_ID'].min() == 0:
    
     canvi = annexio(conqueridor, conquereix, european)
         
-    print('Desocupats: ',len(desocupats.index))
+    print('Unoccupied: ',len(desocupats.index))
   
-   
+energies = []   
+mostres = 1000 #taking a few samples to estimate the appropriate initial temperature
+
+for _ in range(1, mostres):
+    canvi_mostra = canvi.copy()
+    for _ in range(1,5):
+        agregat_mostra =agregat(canvi_mostra)
+        canvi_mostra = flipexecute(canvi_mostra, agregat_mostra)
+    agregat_mostra = agregat(canvi_mostra)
+    energies.append(float(agregat_mostra['Desviacio'].sum()))
+
+
+temp_inicial = 2*np.std(energies) #factor of 2 because I suspect exploring the landscape is difficult
+
+print(f'temp_inicial = {temp_inicial:.0f}')
+    
 x = np.array([])
 y = np.array([])
+n_iter = 10000
 
-temp = 600000 #starting temperature
+#temp = n_iter*[temp_inicial]
+#temp = np.linspace(temp_inicial, 0, n_iter)
+temp = np.logspace(np.log10(temp_inicial), 0, n_iter)
 stored_desviacio = european['POPULATION'].sum() 
-for i in range(1,10000): #number of evaluated configurations
+for i in range(1,n_iter): #number of evaluated configurations
     '''
-    approximate running times (intel core i5 8th gen):
+    approximate running times (intel core i5):
         1000 iterations ~30 s
         10000 iterations ~4 min
-        100000 iterations ~1 hour
-    few improvements after 2000-3000 iterations. Diminishing returns.
+        100000 iterations ~45 min
+    Constant schedule: few improvements after 2000-3000 iterations.
+    Linear schedule: improvements concentrated at the end. Worse solutions than constant
+    schedule. Inadequate initial T? What if linear schedule was a series of constant schedules with 3000 iterations for each 
+    temperature value?
+    Exponential schedule: improvements concentrated within the first few thousand iterations
     '''
     agregat_vell = agregat(canvi)
     
     canvi_copia = canvi.copy()
-    for j in range(1, random.randint(1, 8)): #a random number of flips is executed before accepting or rejecting
+    for _ in range(1, 5): #an arbitrary number of flips is executed before accepting or rejecting
     #this is an atempt to decorrelate the different configurations that are submitted to the metropolis algorithm
         canvi_nou = flipexecute(canvi_copia, agregat_vell)
         
@@ -340,7 +357,7 @@ for i in range(1,10000): #number of evaluated configurations
     
     desviacio_nova = float(agregat_nou['Desviacio'].sum()) #new proposed deviation
 
-    canvi = accepta_rebutja(desviacio_nova, desviacio, canvi, canvi_nou, temp) #dataframe outputted by Metropolis
+    canvi = accepta_rebutja(desviacio_nova, desviacio, canvi, canvi_nou, temp[i-1]) #dataframe outputted by Metropolis
     
     agregat_resultat = agregat(canvi) #aggregate dataframe that has been outputted by Metropolis
     
@@ -353,42 +370,39 @@ for i in range(1,10000): #number of evaluated configurations
         stored_agregat.to_pickle('Totals.pkl') #aggregate dataframe of the optimal configuration
         x = np.append(x, i)
         y = np.append(y, stored_desviacio)
-        print(i)
+        print('Improvement found on interation ', i)
     else:
         if i % 1000 == 0: #visual check every 1000 iterations to confirm the code is running
-            print(i)
+            print('Currently on iteration ', i)
         
 
 plt.figure()
 # Subplot posició x
 plt.grid(True)
-plt.title('Convergence')
+plt.title(f'Convergence. seed = {seed} iterations = {n_iter} schedule = exponential')
 plt.xlabel('Iteration number')
 plt.ylabel('Sum of deviations (inhabitants)')
 plt.plot(x, y)
 plt.tight_layout()
+filename = f'convergence_seed{seed}_iter{n_iter}_exp.png'
+plt.savefig(filename)
+plt.close()
 
 european = pandas.read_pickle('Repartiment.pkl')
 
 ax = european.plot(column = 'TERRITORY_ID') #plots the 7 regions
 
 ax.set_axis_off()
+ax.set_title(f'Map configuration. seed = {seed} iterations = {n_iter}')
+filename2 = f'map_seed{seed}_iter{n_iter}_exp.png'
+plt.savefig(filename2, dpi = 300, bbox_inches='tight')
+plt.close()
 
 ax = european.plot(edgecolor='grey', facecolor='w')
 f,ax = w_attach.plot(european, ax=ax,
         edge_kws=dict(color='r', linestyle=':', linewidth=1),
         node_kws=dict(marker=''))
 ax.set_axis_off() #plots the underlying graph
-
-
-'''
-Improvements
--random seed management
--improve versatily so the dataframe is built from the graph in situ rather than using
-a prebuilt dataframe (originally created from a graph but was then tweaked manually)
--remove rigidness of initial state. Contiguity should emerge by a clever choice of energy 
-function. Possibility of phase transitions (what would be the appropriate order parameter then?)
--normalise population to 1
--introduce computation of correlations
-
-'''
+filename3 = 'graph.png'
+plt.savefig(filename3, dpi = 300, bbox_inches='tight')
+plt.close()
