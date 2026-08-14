@@ -25,13 +25,12 @@ A coding project that groups the provinces of Spain into 7 territories of equal 
 - Create a graph with rook connectivity using libpysal.
 - Attach islands using 3 nearest neighbours.
 - Plant seeds for each territory and expand them until they occupy the map. (Expansion of seeds is currently random. Works good enough for 50 nodes, but it will not when I try to scale up to all EU NUTS-3 regions) 
-- Flips are proposed. Connectivity is check to ensure the regions are contiguous. Metropolis algorithm is implemented with an exponential temperature decrease schedule.
+- Flips are proposed. Connectivity is checked to ensure the regions are contiguous. Metropolis algorithm is implemented with an exponential temperature decrease schedule.
 - Best map configuration is saved as `Repartiment.pkl` and the aggregate data for each TERRITORY_ID is stored in `Totals.pkl`
 - Create 3 plots: one for the graph, one for the map configuration, one for the convergence.
 
 ## Results and conclusions
 - Convergence is fast for the first 2000-3000 iterations, then stalls (diminishing returns).
-- Keeping the temperature constant or decreasing it linearly does not change the results significantly.
 - Different runs yield different map configurations that appear qualitatively distinct (a definition of distance in the space of map configurations would be needed).
 - A "good" solution is easy to achieve but the optimal one is difficult to find (abundance of local minima). This makes me think that the space of solutions might look either like "gravel pavement" (flat at a large scale but full of shallow local minima) or "karstic" (deep wells separated by almost vertical walls. A spiky landscape).
 
