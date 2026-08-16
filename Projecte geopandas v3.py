@@ -12,7 +12,7 @@ import numpy as np
 import random
 import pandas
 
-seed = 2
+seed = 1
 np.random.seed(seed)
 random.seed(seed)
 
@@ -53,59 +53,7 @@ def attach_islands(w_rook, w_knn3):
 #Functions used to initialise the map#
 ######################################
 
-def plant_seeds(european):
-    '''
-    This function takes the column TERRITORY_ID and assignes a non-zero value to each region (row)
-    whilst respecting contiguity. 7 seeds are generated and then spread out by checking 
-    their empty (TERRITORY_ID = 0) neighbours and assigning them the same ID as the neighbouring seed.
-    
-    Take a random seed with TERRITORY_ID = N --> choose random empty neighbour --> change TERRITORY_ID from 0 to N
-    Repeat until no empty regions remain.
-    
-    Input
-    ----------
-    european : dataframe
-        contains all the information on regions, populations, neighbours...
-        see Dataframe_previ.pkl metadata
-
-    Output
-    -------
-    european : dataframe
-        the input dataframe with a TERRITORY_ID assigned to each region
-    '''
-    init_seeds = random.sample(range(0, 51), 7)
-    fronteres = np.array([])
-    i = 1
-    for seed in init_seeds:
-        european.loc[seed, 'TERRITORY_ID'] = i
-        frontera = w_attach.neighbors[seed]
-        fronteres = np.append(fronteres, frontera)
-        i = i+1
-    #seeds for every region have been generated
-    return european   
-
-def ocupacio(european):
-    '''
-    Function that returns two dataframes. One for occupied regions and another for unoccupied regions
-    
-    Input
-    ----------
-    european : dataframe
-        contains all the information on regions, populations, neighbours...
-        see Dataframe_previ.pkl metadata
-
-    Output
-    -------
-    ocupats : dataframe
-        dataframe with all the occupied regions
-    desocupats : dataframe
-        dataframe with all the unoccupied regions
-    '''
-    desocupats = european.loc[european['TERRITORY_ID'] == 0] #Territoris sense ocupar
-    ocupats = european.loc[european['TERRITORY_ID'] != 0] #Territoris ocupats
-    return ocupats, desocupats
-
-def conquesta(ocupats, desocupats):
+def conquesta(european):
     '''
     Function used to populate the map after planting the seeds
     
@@ -123,36 +71,23 @@ def conquesta(ocupats, desocupats):
     conquereix : dataframe
         randomly picked neighboring unoccupied region
     '''
-    conqueridor = ocupats.sample()
-    vol_conquerir = desocupats[desocupats.index.isin(conqueridor['VESINS'].tolist()[0])] 
-    #picks neighbours
-    if len(vol_conquerir.index) == 0:
-        conquereix = conqueridor
-    else:
-        conquereix = vol_conquerir.sample() #random neighbour
-    return conqueridor, conquereix
-
-def annexio(conqueridor, conquereix, european):
-    '''
-    Function that implements the change in TERRITORY_ID in the European dataframe
-    once a conquest/annexation has been accepted
-
-    Parameters
-    ----------
-    conqueridor : dataframe
-        region that occupies
-    conquereix : dataframe
-        region that is occupied
-    european : dataframe
-        intentary of all regions
-
-    Returns
-    -------
-    european : dataframe
-        dataframe updated with the occupation
-
-    '''
-    european.loc[conquereix.index[0], 'TERRITORY_ID'] = int(conqueridor['TERRITORY_ID'].iloc[0])
+    init_seeds = random.sample(range(0, 51), 7)
+    for i, seed in enumerate(init_seeds, 1):
+        european.loc[seed, 'TERRITORY_ID'] = i
+    
+    desocupats = european.loc[european['TERRITORY_ID'] == 0] #Territoris sense ocupar
+    ocupats = european.loc[european['TERRITORY_ID'] != 0] #Territoris ocupats
+    frontera = desocupats[desocupats.index.isin(ocupats['VESINS'].explode())]
+    while len(frontera.index) != 0:
+        conquerit = frontera.sample()
+        conqueridors = ocupats[ocupats.index.isin(conquerit['VESINS'].explode())]
+        conqueridor = conqueridors.sample()
+        european.loc[conquerit.index[0], 'TERRITORY_ID'] = int(conqueridor['TERRITORY_ID'].iloc[0])
+        desocupats = european.loc[european['TERRITORY_ID'] == 0]
+        ocupats = european.loc[european['TERRITORY_ID'] != 0]
+        frontera = desocupats[desocupats.index.isin(ocupats['VESINS'].explode())]
+        print('Unoccupied: ',len(desocupats.index))
+        
     return european
 
 ##################################
@@ -288,21 +223,7 @@ def avaluacio_canvi(agregat_vell, agregat_nou):
 '''
 w_attach = attach_islands(w_rook, w_knn3)
 
-dataframe = plant_seeds(european)
-while european['TERRITORY_ID'].min() == 0:
-
-
-    ocupats, desocupats = ocupacio(european)
-    if len(desocupats.index) == 1:
-       conquereix = desocupats
-       conqueridors = european[european.index.isin(conquereix['VESINS'].tolist()[0])]
-       conqueridor = conqueridors.sample()
-    else:   
-        conqueridor, conquereix = conquesta(ocupats, desocupats)
-   
-    canvi = annexio(conqueridor, conquereix, european)
-        
-    print('Unoccupied: ',len(desocupats.index))
+canvi = conquesta(european)
   
 energies = []   
 mostres = 1000 #taking a few samples to estimate the appropriate initial temperature
@@ -334,11 +255,6 @@ for i in range(1,n_iter): #number of evaluated configurations
         1000 iterations ~30 s
         10000 iterations ~4 min
         100000 iterations ~45 min
-    Constant schedule: few improvements after 2000-3000 iterations.
-    Linear schedule: improvements concentrated at the end. Worse solutions than constant
-    schedule. Inadequate initial T? What if linear schedule was a series of constant schedules with 3000 iterations for each 
-    temperature value?
-    Exponential schedule: improvements concentrated within the first few thousand iterations
     '''
     agregat_vell = agregat(canvi)
     
