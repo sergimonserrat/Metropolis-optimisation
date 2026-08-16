@@ -24,7 +24,7 @@ A coding project that groups the provinces of Spain into 7 territories of equal 
 ## Code description 
 - Create a graph with rook connectivity using libpysal.
 - Attach islands using 3 nearest neighbours.
-- Plant seeds for each territory and expand them until they occupy the map. (Expansion of seeds is currently random. Works good enough for 50 nodes, but it will not when I try to scale up to all EU NUTS-3 regions) 
+- Plant seeds for each territory and expand them until they occupy the map. 
 - Flips are proposed. Connectivity is checked to ensure the regions are contiguous. Metropolis algorithm is implemented with an exponential temperature decrease schedule.
 - Best map configuration is saved as `Repartiment.pkl` and the aggregate data for each TERRITORY_ID is stored in `Totals.pkl`
 - Create 3 plots: one for the graph, one for the map configuration, one for the convergence.
