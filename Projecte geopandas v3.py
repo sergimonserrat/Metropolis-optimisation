@@ -55,34 +55,33 @@ def attach_islands(w_rook, w_knn3):
 
 def conquesta(european):
     '''
-    Function used to populate the map after planting the seeds
+    Function that initialises the map. It plants seeds for every territory and then populates the map.
     
     Input
     ----------
-    ocupats : dataframe
-        dataframe with occupied region
-    desocupats : dataframe
-        dataframe with unoccuipied regions
+    european : dataframe
+        dataframe with information from every province (population, geometry, adjacencies...). 
+        TERRITORY_ID = 0 for all provinces.
 
     Output
     -------
-    conqueridor : dataframe
-        region that is picked as occupier
-    conquereix : dataframe
-        randomly picked neighboring unoccupied region
+    european : dataframe
+        populated dataframe. TERRITORY_ID column is filled with numbers 1-7.
     '''
-    init_seeds = random.sample(range(0, 51), 7)
+    #Seeds are planted
+    init_seeds = random.sample(range(0, 51), 7) 
     for i, seed in enumerate(init_seeds, 1):
         european.loc[seed, 'TERRITORY_ID'] = i
     
-    desocupats = european.loc[european['TERRITORY_ID'] == 0] #Territoris sense ocupar
-    ocupats = european.loc[european['TERRITORY_ID'] != 0] #Territoris ocupats
-    frontera = desocupats[desocupats.index.isin(ocupats['VESINS'].explode())]
-    while len(frontera.index) != 0:
-        conquerit = frontera.sample()
-        conqueridors = ocupats[ocupats.index.isin(conquerit['VESINS'].explode())]
-        conqueridor = conqueridors.sample()
-        european.loc[conquerit.index[0], 'TERRITORY_ID'] = int(conqueridor['TERRITORY_ID'].iloc[0])
+    #Map is populated
+    desocupats = european.loc[european['TERRITORY_ID'] == 0] #Unoccupied provinces
+    ocupats = european.loc[european['TERRITORY_ID'] != 0] #Occupied provinces
+    frontera = desocupats[desocupats.index.isin(ocupats['VESINS'].explode())] #The border is defined
+    while len(frontera.index) != 0: #Loop until border is exhausted
+        conquerit = frontera.sample() #Picks a random unoccupied border province
+        conqueridors = ocupats[ocupats.index.isin(conquerit['VESINS'].explode())] #Selects all occupied neighbours
+        conqueridor = conqueridors.sample() #Picks a random occupied neighbour
+        european.loc[conquerit.index[0], 'TERRITORY_ID'] = int(conqueridor['TERRITORY_ID'].iloc[0]) #Territory_ID is updated
         desocupats = european.loc[european['TERRITORY_ID'] == 0]
         ocupats = european.loc[european['TERRITORY_ID'] != 0]
         frontera = desocupats[desocupats.index.isin(ocupats['VESINS'].explode())]
