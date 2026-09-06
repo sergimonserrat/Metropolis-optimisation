@@ -32,6 +32,8 @@ A coding project that groups the provinces of Spain into 7 territories of equal 
 - `Maps`: folder containing .png files with the solution maps of seeds 0-99. They are stored with the naming convention `Map_seed[seed_number]_iter[number_of_iterations]_exp.pkl`.
 - `Graph.png`: plot showing how the provinces are connected
 - `Hamming.py`: auxiliary code that computes the Hamming distance between solutions.
+- `Hamming_100_seeds.png`: histogram of all the Hamming distances between pairs of solutions with seeds 0-99.
+- `sol_landscape_100_seeds.png`: 3D MDS used to visualise whether solutions were clustered or not. 
 
 ## Code description 
 `Projecte_geopandas_v3.py`:
