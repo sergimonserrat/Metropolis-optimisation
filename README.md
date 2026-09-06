@@ -20,7 +20,7 @@ A coding project that groups the provinces of Spain into 7 territories of equal 
 - `Convergence.png`: example plot showing how the optimiser converges
 - `Solutions`: folder containing .pkl files describing the partition of seeds 0-9.
   - `Repartiment_seed[seed_number]_iter[number_of_iterations]_exp.pkl`: Dataframes with the same structure than `Dataframe_previ.pkl` where TERRITORY_ID has been filled with integers 1-7.
-  - `Totals_seed[seed_number]_iter[number_of_iterations]_exp.pkl`: Aggregate dataframe detailing the population of the 7 regions and their deviation from the mean.
+  - `Totals_seed[seed_number]_iter[number_of_iterations]_exp.pkl`: Aggregate dataframes detailing the population of the 7 regions and their deviation from the mean.
 
   | Column | Type | Description |
   |---|---|---|
