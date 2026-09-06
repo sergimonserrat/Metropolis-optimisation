@@ -21,12 +21,14 @@ A coding project that groups the provinces of Spain into 7 territories of equal 
 - `Solutions`: folder containing .pkl files describing the partition of seeds 0-9.
   - `Repartiment_seed[seed_number]_iter[number_of_iterations]_exp.pkl`: Dataframes with the same structure than `Dataframe_previ.pkl` where TERRITORY_ID has been filled with integers 1-7.
   - `Totals_seed[seed_number]_iter[number_of_iterations]_exp.pkl`: Aggregate dataframe detailing the population of the 7 regions and their deviation from the mean.
+
   | Column | Type | Description |
   |---|---|---|
   | TERRITORY_ID | integer | ID number (1-7) of the region the province belongs to. |
   | Membres | integer | Number of provinces with the same TERRITORY_ID |
   | Poblacio | integer | Population of the region |
   | Desviacio | float | Deviation from the mean |
+
 - `Maps`: folder containing .png files with the solution maps of seeds 0-99. They are stored with the naming convention `Map_seed[seed_number]_iter[number_of_iterations]_exp.pkl`.
 - `Graph.png`: plot showing how the provinces are connected
 - `Hamming.py`: auxiliary code that computes the Hamming distance between solutions.
