@@ -37,23 +37,16 @@ dist_folder = 'Distances'
 os.makedirs(dist_folder, exist_ok=True)
 print(f'Distance matrices will be stored in {dist_folder} folder')
 
-permutacions = list(permutations(range(1,8))) #Generate permutations
+permutacions = np.array(list(permutations(range(1,8)))) #Generate permutations
 directory = 'Solutions'
   
 def calcul_distancia(i, j, solucions, permutacions):
     distancia = np.inf
             
     for p in permutacions:
-        diccionari = {k: p[k-1] for k in range(1, 8)} #Dictionary to relabel IDs using a given permutation
-            
-        permutat = solucions[j].copy()
-        permutat['TERRITORY_ID'] = permutat['TERRITORY_ID'].map(diccionari) #Applies permutation
-        
-        nova_distancia = (solucions[i]['TERRITORY_ID'] != permutat['TERRITORY_ID']).sum() #Hamming distance
-        
+        nova_distancia = np.sum(solucions[i] != p[solucions[j] - 1])
         if nova_distancia < distancia:
-            
-            distancia = nova_distancia #Stores best (minimum) distance 
+            distancia = nova_distancia #Stores best (minimum) distance
     return i, j, distancia
 
 for entry in os.scandir(directory):
@@ -69,6 +62,7 @@ for entry in os.scandir(directory):
         hamming = np.zeros((n, n)) #Initialise distance matrix
         
         solucions = [pd.read_pickle(f'{directory}/{folder}/{sol}') for sol in repartiments] #Load dataframes
+        solucions = [np.array(sol['TERRITORY_ID']) for sol in solucions]
         agregats = [pd.read_pickle(f'{directory}/{folder}/{tot}') for tot in totals] #Load aggregate dataframes
         energies = [df['Desviacio'].sum() for df in agregats]
         #energies = energies[:10]

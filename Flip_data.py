@@ -78,7 +78,7 @@ for entry in os.scandir(directory):
         
 flip_agregat = flip_data.groupby('Flips', as_index = False).agg(Energy=('Energy' , 'mean'), Sigma=('Energy', 'sem'))
 
-flip_agregat['Signficancia'] = (flip_agregat['Energy']-flip_agregat['Energy'][2])/np.sqrt(flip_agregat['Sigma']**2 + flip_agregat['Sigma'][2]**2)
+flip_agregat['Signficancia'] = (flip_agregat['Energy']-flip_agregat['Energy'][1])/np.sqrt(flip_agregat['Sigma']**2 + flip_agregat['Sigma'][1]**2)
 
 flip_data.to_pickle('Flip_data.pkl')
 

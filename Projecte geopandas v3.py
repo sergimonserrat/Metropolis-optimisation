@@ -20,7 +20,7 @@ from joblib import Parallel, delayed
 import time
 
 '''
-100 seeds x 5 values of flips x 100000 iterations ~24 h 22 min
+100 seeds x 5 values of flips x 100000 iterations ~1 h 27 min
 '''
 
 start = time.time()
@@ -65,13 +65,14 @@ graph = w_attach.to_networkx()
 
 # Extreure la matriu d'adjacències
 adj = nx.to_numpy_array(graph)
-
+populations = np.array(european['POPULATION'])
+territory_id = np.array(european['TERRITORY_ID'])
 
 ######################################
 #Functions used to initialise the map#
 ######################################
 
-def conquesta(european):
+def conquesta(adj, territory_id):
     '''
     Function that initialises the map. It plants seeds for every territory and then populates the map.
     
@@ -89,29 +90,31 @@ def conquesta(european):
     #Seeds are planted
     init_seeds = random.sample(range(0, 51), 7) 
     for i, seed in enumerate(init_seeds, 1):
-        european.loc[seed, 'TERRITORY_ID'] = i
+        territory_id[seed] = i
     
     #Map is populated
-    desocupats = european.loc[european['TERRITORY_ID'] == 0] #Unoccupied provinces
-    ocupats = european.loc[european['TERRITORY_ID'] != 0] #Occupied provinces
-    frontera = desocupats[desocupats.index.isin(ocupats['VESINS'].explode())] #The border is defined
-    while len(frontera.index) != 0: #Loop until border is exhausted
-        conquerit = frontera.sample() #Picks a random unoccupied border province
-        conqueridors = ocupats[ocupats.index.isin(conquerit['VESINS'].explode())] #Selects all occupied neighbours
-        conqueridor = conqueridors.sample() #Picks a random occupied neighbour
-        european.loc[conquerit.index[0], 'TERRITORY_ID'] = int(conqueridor['TERRITORY_ID'].iloc[0]) #Territory_ID is updated
-        desocupats = european.loc[european['TERRITORY_ID'] == 0]
-        ocupats = european.loc[european['TERRITORY_ID'] != 0]
-        frontera = desocupats[desocupats.index.isin(ocupats['VESINS'].explode())]
-        print('Unoccupied: ',len(desocupats.index))
+    desocupats = (territory_id == 0)
+    ocupats = (territory_id != 0)
+    frontera_mask = (desocupats & (adj @ ocupats > 0))
+    frontera = np.where(frontera_mask)[0]
+    while frontera_mask.any():
+        conquerit = np.random.choice(frontera)
+        conqueridors = np.where((territory_id != 0) & (adj[conquerit] == 1))[0]
+        conqueridor = np.random.choice(conqueridors)
+        territory_id[conquerit] = territory_id[conqueridor]
         
-    return european
+        frontera_mask[conquerit] = False
+        veins_conquerit = np.where((adj[conquerit] == 1) & (territory_id == 0))[0]
+        frontera_mask[veins_conquerit] = True
+        frontera = np.where(frontera_mask)[0]
+
+    return territory_id
 
 ##################################
 #Functions used for the annealing#
 ##################################
 
-def agregat(canvi):
+def agregat(territory_id, populations):
     '''
     Function that aggregates territories and computes their deviation from the mean.
 
@@ -126,12 +129,10 @@ def agregat(canvi):
         Dataframe with the aggregate data for every TERRITORY_ID, including deviation from the mean
 
     '''
-    agregat = canvi.groupby('TERRITORY_ID').agg(
-        Membres=('TERRITORY_ID','size'), 
-        Poblacio=('POPULATION','sum')
-    )
-    agregat['Desviacio'] = abs(agregat['Poblacio'] - agregat.mean().iloc[1])
-    return agregat
+    agregat_membres = np.bincount(territory_id)[1:]
+    agregat_poblacio = np.bincount(territory_id, weights = populations)[1:]
+    desviacio = abs(agregat_poblacio - np.mean(agregat_poblacio))
+    return agregat_membres, agregat_poblacio, desviacio
 
 def DFS(nodes, adj):
     '''
@@ -169,17 +170,15 @@ def DFS(nodes, adj):
                     visited += 1
         return visited
 
-def flipexecute(canvi):
+def flipexecute(territory_id, adj, agregat_membres):
     '''
     Implementation of the exchange of regions. It checks if the change respects contiguity.
     If not, a new exchange is proposed and so on until contiguity is maintained.
 
     Input
     ----------
-    canvi : dataframe
-       new version of the European dataframe that is going to be evaluated to see
-       if the new map configuration should be accepted
-       
+    agregat_membres: 
+        
     agregat_vell : dataframe
         dataframe with the aggregate data of the old configuration
 
@@ -189,34 +188,28 @@ def flipexecute(canvi):
         updated dataframe after the ID flip
 
     '''
-    membres = canvi['TERRITORY_ID'].value_counts()
-    preservacio = membres[membres > 1].index.tolist()    
-    #territories that contain only 1 region are at risk of extinction if they are flipped and accepted
-    #these territories are excludad from the list of candidates that can be flipped
-    candidats_flip = canvi[canvi['TERRITORY_ID'].isin(preservacio)] #candidates to have its ID flipped
+    preservacio = np.where(agregat_membres > 1)[0] + 1
+    candidats_flip = np.where(np.isin(territory_id, preservacio))[0]
     clusters = 2
-    while clusters != 1:
-        candidat = candidats_flip.sample() #random candidate
-        donor_nuts = candidat['NUTS_ID'].iloc[0]
-        donor_id = candidat['TERRITORY_ID'].iloc[0]
-        vesins_candidat = canvi[(canvi.index.isin(candidat['VESINS'].iloc[0])) & (canvi['TERRITORY_ID'] != donor_id)] #filter candidate neighbours
+    while clusters !=1:
+        candidat = np.random.choice(candidats_flip)
+        vesins_candidat = np.where((territory_id != territory_id[candidat]) & (adj[candidat] == 1))[0]
         if len(vesins_candidat) == 0:
             continue
-        nou_id = int(vesins_candidat.sample()['TERRITORY_ID'].iloc[0]) #random pick a new ID
-        #We only need to check connectivity of these two regions
-        donor_region = canvi[(canvi['TERRITORY_ID'] == donor_id) & (canvi['NUTS_ID'] != donor_nuts)] #donor region without the candidate
-        acceptor_region = canvi[(canvi['TERRITORY_ID'] == nou_id) | (canvi['NUTS_ID'] == donor_nuts)] #acceptor region + candidate
-        donor_indices = donor_region.index.to_list()
-        acceptor_indices = acceptor_region.index.to_list()
-        donor_DFS = DFS(donor_indices, adj)
-        acceptor_DFS = DFS(acceptor_indices, adj)
+        nou_id = int(np.random.choice(territory_id[vesins_candidat]))
+        donor_region = np.where(territory_id == territory_id[candidat])[0]
+        donor_region = donor_region[donor_region != candidat]
+        acceptor_region = np.where(territory_id == nou_id)[0]
+        acceptor_region = np.append(acceptor_region, candidat)
+        donor_DFS = DFS(donor_region, adj)
+        acceptor_DFS = DFS(acceptor_region, adj)
         if donor_DFS == len(donor_region) and acceptor_DFS == len(acceptor_region):
-            canvi.loc[candidat.index, 'TERRITORY_ID'] = nou_id
+            territory_id[candidat] = nou_id
             clusters = 1
         else:
             clusters = 2
             
-    return canvi
+    return territory_id
 
 def accepta_rebutja(desviacio_nova, desviacio, 
                     matriu_vella, matriu_nova, temperatura):
@@ -272,7 +265,7 @@ print(f'Convergence plots will be stored in {convergence_folder} folder')
 #Annealing implementation#
 ##########################
 
-def annealing(n, flips, european):
+def annealing(n, flips, adj, territory_id, populations, european):
     '''
     
 
@@ -300,18 +293,19 @@ def annealing(n, flips, european):
     np.random.seed(seed)
     random.seed(seed)
     
-    canvi = conquesta(european)
+    canvi = conquesta(adj, territory_id)
       
     energies = []   
     mostres = 1000 #taking a few samples to estimate the appropriate initial temperature
     
     print(f'[Seed {seed}] Sampling to estimate initial temperature...')
+    agregat_mostra = agregat(canvi, populations)
     for _ in range(1, mostres):
         canvi_mostra = canvi.copy()
         for _ in range(1,flips+1):
-            canvi_mostra = flipexecute(canvi_mostra)
-        agregat_mostra = agregat(canvi_mostra)
-        energies.append(float(agregat_mostra['Desviacio'].sum()))
+            canvi_mostra = flipexecute(canvi_mostra, adj, agregat_mostra[0])
+        agregat_mostra = agregat(canvi_mostra, populations)
+        energies.append(float(np.sum(agregat_mostra[2])))
     
     
     temp_inicial = 2*np.std(energies) #factor of 2 because I suspect exploring the landscape is difficult
@@ -325,44 +319,50 @@ def annealing(n, flips, european):
     #temp = n_iter*[temp_inicial]
     #temp = np.linspace(temp_inicial, 0, n_iter)
     temp = np.logspace(np.log10(temp_inicial), 0, n_iter)
-    stored_desviacio = european['POPULATION'].sum() 
+    stored_desviacio = np.sum(populations)
+    repartiment = territory_id.copy()
     for i in range(1,n_iter): #number of evaluated configurations
-        agregat_vell = agregat(canvi)
+        agregat_vell = agregat(canvi, populations)
         
         canvi_copia = canvi.copy()
+        agregat_membres = agregat_vell[0]
         for _ in range(1, flips+1): #an arbitrary number of flips is executed before accepting or rejecting
         #this is an atempt to decorrelate the different configurations that are submitted to the metropolis algorithm
-            canvi_nou = flipexecute(canvi_copia)
+            canvi_nou = flipexecute(canvi_copia, adj, agregat_membres)
             
-            canvi_copia = canvi_nou 
+            canvi_copia = canvi_nou
+            
+            agregat_membres = agregat(canvi_nou, populations)[0]
         
         canvi_nou = canvi_copia
         
-        agregat_nou = agregat(canvi_nou) #new aggregate dataframe
+        agregat_nou = agregat(canvi_nou, populations)
         
-        desviacio = float(agregat_vell['Desviacio'].sum()) #current deviation
+        desviacio = float(np.sum(agregat_vell[2])) #current deviation
         
-        desviacio_nova = float(agregat_nou['Desviacio'].sum()) #new proposed deviation
+        desviacio_nova = float(np.sum(agregat_nou[2])) #new proposed deviation
     
         canvi = accepta_rebutja(desviacio_nova, desviacio, canvi, canvi_nou, temp[i-1]) #dataframe outputted by Metropolis
         
-        agregat_resultat = agregat(canvi) #aggregate dataframe that has been outputted by Metropolis
+        agregat_resultat = agregat(canvi, populations) #aggregate dataframe that has been outputted by Metropolis
         
-        if float(agregat_resultat['Desviacio'].sum()) < stored_desviacio: #store the minimum value
-            stored_desviacio = float(agregat_resultat['Desviacio'].sum())
+        if float(np.sum(agregat_resultat[2])) < stored_desviacio: #store the minimum value
+            stored_desviacio = float(np.sum(agregat_resultat[2]))
             stored_agregat = agregat_resultat #Aggregate dataframe of the optimal solution
-            #seleccio = canvi[['NUTS_NAME', 'TERRITORY_ID', 'POPULATION']]
-            #seleccio.to_excel('Repartiment.ods')
-            canvi.to_pickle(f'{sol_dir}/Repartiment_seed{seed}_iter{n_iter}_{flips}flips.pkl') #dataframe with the ID of every region. The optimal map configuration is in here
-            stored_agregat.to_pickle(f'{sol_dir}/Totals_seed{seed}_iter{n_iter}_{flips}flips.pkl') #aggregate dataframe of the optimal configuration
+            repartiment = canvi
             x = np.append(x, i)
             y = np.append(y, stored_desviacio)
             print(f'[Seed {seed}, {flips} flips] Improvement found on iteration {i} with deviation = {stored_desviacio}')
         else:
             if i % 1000 == 0: #visual check every 1000 iterations to confirm the code is running
                 print(f'[Seed {seed}, {flips} flips] Iteration {i} of {n_iter}')
-            
     
+    european['TERRITORY_ID'] = repartiment
+    european.to_pickle(f'{sol_dir}/Repartiment_seed{seed}_iter{n_iter}_{flips}flips.pkl') #dataframe with the ID of every region. The optimal map configuration is in here
+    totals = pandas.DataFrame({'TERRITORY_ID': range(1, 8), 'Membres': stored_agregat[0], 'Poblacio': stored_agregat[1],
+                                   'Desviacio': stored_agregat[2]})
+    totals.to_pickle(f'{sol_dir}/Totals_seed{seed}_iter{n_iter}_{flips}flips.pkl')
+            
     plt.figure()
     # Subplot posició x
     plt.grid(True)
@@ -386,10 +386,8 @@ def annealing(n, flips, european):
     
 seeds = range(0,100)
 flips = [2, 4, 5, 6]
-'''
-10 seeds x 10000 iterations ~45 min
-'''
-resultats = Parallel(n_jobs=12)(delayed(annealing)(seed, flip, european.copy()) for seed in seeds for flip in flips)
+
+resultats = Parallel(n_jobs=12)(delayed(annealing)(seed, flip, adj.copy(), territory_id.copy(), populations.copy(), european.copy()) for seed in seeds for flip in flips)
 
 end = time.time()
 
