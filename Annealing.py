@@ -18,6 +18,9 @@ import random
 import pandas
 from joblib import Parallel, delayed
 import time
+#import cProfile
+#import pstats
+from numba import njit
 
 '''
 100 seeds x 5 values of flips x 100000 iterations ~1 h 27 min
@@ -78,14 +81,16 @@ def conquesta(adj, territory_id):
     
     Input
     ----------
-    european : dataframe
-        dataframe with information from every province (population, geometry, adjacencies...). 
-        TERRITORY_ID = 0 for all provinces.
+    adj : array
+        adjacency matrix
+        
+    territory_id : array
+        array with all elements set to zero
 
     Output
     -------
-    european : dataframe
-        populated dataframe. TERRITORY_ID column is filled with numbers 1-7.
+    territory_id : array
+        populated array with numbers 1-7.
     '''
     #Seeds are planted
     init_seeds = random.sample(range(0, 51), 7) 
@@ -120,13 +125,17 @@ def agregat(territory_id, populations):
 
     Input
     ----------
-    canvi : dataframe
+    territory_id : array
         proposed change in the map
 
     Output
     -------
-    agregat : dataframe
-        Dataframe with the aggregate data for every TERRITORY_ID, including deviation from the mean
+    agregat_membres : array
+        member count for each region
+    agregat_poblacio : array
+        aggregated population for each region
+    desviacio : float
+        energy. Deviation from the mean.
 
     '''
     agregat_membres = np.bincount(territory_id)[1:]
@@ -134,6 +143,7 @@ def agregat(territory_id, populations):
     desviacio = abs(agregat_poblacio - np.mean(agregat_poblacio))
     return agregat_membres, agregat_poblacio, desviacio
 
+@njit
 def DFS(nodes, adj):
     '''
     Performs a DFS on a given set of nodes and adjacency matrix. Used to check contiguity
@@ -142,7 +152,7 @@ def DFS(nodes, adj):
     ----------
     nodes : list
         subset of provinces involved in the DFS
-    Adj : numpy array
+    adj : numpy array
         matrix of adjacencies of the selected nodes
 
     Returns
@@ -155,18 +165,25 @@ def DFS(nodes, adj):
     if n <= 1:
         return n
     else:
-        sub_adj = adj[np.ix_(nodes,nodes)] #n x n matrix
-        visitats = np.zeros(n, dtype = bool)
-        front = [0] #indexes have been implicitly resetted inside the sub_adj
+        #sub_adj = adj[np.ix_(nodes,nodes)] #n x n matrix
+        sub_adj = np.zeros((n, n))
+        for i in range(n):
+            for j in range(n):
+                sub_adj[i, j] = adj[nodes[i], nodes[j]]
+        visitats = np.zeros(n, dtype = np.bool_)
+        front = np.zeros(n, dtype = np.int64) #indexes have been implicitly resetted inside the sub_adj
+        pile = 1
         visitats[0] = True #starting point automatically counts as visited
         visited = 1 #visited counter
-        while len(front) > 0:
-            node = front.pop() #visited is removed
+        while pile > 0:
+            pile -= 1
+            node = front[pile]
             veins = np.where(sub_adj[node] == 1)[0] #neighbors are selected
             for vei in veins:
                 if visitats[vei] == False:
                     visitats[vei] = True #counted as visited
-                    front.append(vei) #placed in the wavefront advancing through the tree
+                    front[pile] = vei
+                    pile += 1
                     visited += 1
         return visited
 
@@ -177,15 +194,18 @@ def flipexecute(territory_id, adj, agregat_membres):
 
     Input
     ----------
-    agregat_membres: 
+    agregat_membres: array
+        member count for each region
         
-    agregat_vell : dataframe
-        dataframe with the aggregate data of the old configuration
-
+    adj : array
+        adjacency matrix
+    
+    territory_id : array
+        map configuration
     Output
     -------
-    canvi : dataframe
-        updated dataframe after the ID flip
+    territory_id : array
+        updated map configuration after the flip
 
     '''
     preservacio = np.where(agregat_membres > 1)[0] + 1
@@ -222,9 +242,9 @@ def accepta_rebutja(desviacio_nova, desviacio,
         new proposed deviation from the mean
     desviacio : float
         current deviation from the mean
-    matriu_vella : dataframe
+    matriu_vella : array
         current map configuration
-    matriu_nova : dataframe
+    matriu_nova : array
         new proposed map configuration
     temperatura : float
         temperature. A parameter that determines how often a flip that worsens the
@@ -232,7 +252,7 @@ def accepta_rebutja(desviacio_nova, desviacio,
 
     Returns
     -------
-    matriu_vella : dataframe
+    matriu_vella : array
         updated dataframe after the Metropolis algorithm
 
     '''
@@ -267,17 +287,23 @@ print(f'Convergence plots will be stored in {convergence_folder} folder')
 
 def annealing(n, flips, adj, territory_id, populations, european):
     '''
+    Main programs. Performs the annealing
     
-
     Parameters
     ----------
-    n : TYPE
-        DESCRIPTION.
-    flips : TYPE
-        DESCRIPTION.
-    european : TYPE
-        DESCRIPTION.
-
+    n : integer
+        seed number
+    flips : integer
+        number of flips per iteration
+    territory_id : array
+        map configuration
+    populations : array
+        population per province
+    european : dataframe
+        starting dataframe containing all the information on adjacencies, populations, etc.
+        Here it is only called to update the TERRITORY_ID column after the annealing so
+        everything can be stored into a .pkl file.
+        
     Returns
     -------
     None.
@@ -385,10 +411,15 @@ def annealing(n, flips, adj, territory_id, populations, european):
     plt.close()
     
 seeds = range(0,100)
-flips = [2, 4, 5, 6]
+flips = [1, 3, 7, 15, 25]
 
 resultats = Parallel(n_jobs=12)(delayed(annealing)(seed, flip, adj.copy(), territory_id.copy(), populations.copy(), european.copy()) for seed in seeds for flip in flips)
+'''
+with cProfile.Profile() as pr:
+    annealing(0, 3, adj, territory_id, populations, european)
 
+stats = pstats.Stats(pr)
+stats.sort_stats('cumulative').print_stats(20)
+'''
 end = time.time()
-
 print('Time elapsed:', end-start)

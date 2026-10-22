@@ -20,6 +20,7 @@ from natsort import natsorted
 import sklearn as sk
 import time
 from joblib import Parallel, delayed
+from numba import njit
 
 start = time.time()
 '''
@@ -39,7 +40,8 @@ print(f'Distance matrices will be stored in {dist_folder} folder')
 
 permutacions = np.array(list(permutations(range(1,8)))) #Generate permutations
 directory = 'Solutions'
-  
+
+@njit
 def calcul_distancia(i, j, solucions, permutacions):
     distancia = np.inf
             
@@ -62,7 +64,7 @@ for entry in os.scandir(directory):
         hamming = np.zeros((n, n)) #Initialise distance matrix
         
         solucions = [pd.read_pickle(f'{directory}/{folder}/{sol}') for sol in repartiments] #Load dataframes
-        solucions = [np.array(sol['TERRITORY_ID']) for sol in solucions]
+        solucions = np.array([np.array(sol['TERRITORY_ID']) for sol in solucions])
         agregats = [pd.read_pickle(f'{directory}/{folder}/{tot}') for tot in totals] #Load aggregate dataframes
         energies = [df['Desviacio'].sum() for df in agregats]
         #energies = energies[:10]
