@@ -3,7 +3,7 @@ A coding project that groups the provinces of Spain into 7 territories of equal 
 
 ## Repository structure:
 - `Report.pdf`: report summarising the findings of this project.
-- `Projecte geopandas v3.py`: Main code
+- `Annealing.py`: Main code
 - `Dataframe_previ.pkl`: Graph and population data. 
 
 | Column | Type | Description |
