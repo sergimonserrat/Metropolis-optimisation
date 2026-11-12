@@ -34,7 +34,7 @@ python3.12 Hamming.py --graph real
 python3.12 Flip_data.py --graph real
 ```
 
-#### Synthetic planar graphs (Voronoi graphs, 51 nodes)
+#### Synthetic planar graphs (Voronoi tesselation + Delaunay triangulation, 51 nodes)
 
 ```bash
 # Generate synthetic graphs and analyse them
