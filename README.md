@@ -1,4 +1,4 @@
-# Graph partitioning using Metropolis optimisation
+# Graph partitioning using simulated annealing
 A coding project that groups the provinces of Spain into 7 territories of equal population. Using the Metropolis algorithm, it divides a provincial map into 7 contiguous regions by minimising the deviation from the mean population. Solving this problem is important for electoral districting in some countries and might be useful in logistics and public administration.
 
 ## How to run
