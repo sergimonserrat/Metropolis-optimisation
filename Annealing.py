@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
-"""
+'''
 Created on Fri Oct  6 18:46:21 2024
 
 @author: Sergi Monserrat Mascaró
-"""
+'''
 
 import os
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
 
+import argparse
+import sys
 from libpysal.weights import Rook, KNN
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -21,19 +23,67 @@ import time
 #import cProfile
 #import pstats
 from numba import njit
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
 
 '''
-100 seeds x 5 values of flips x 100000 iterations ~1 h 27 min
+100 seeds x 5 values of flips x 100000 iterations ~30 min
 '''
+
+def arg_parse():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--graph',
+        choices=['synthetic', 'real'],
+        default='synthetic',
+        help='Type of graph to partition (default: synthetic).',
+    )
+    parser.add_argument(
+        '--synthetic_id',
+        type=int,
+        default=0,
+        help='ID of the synthetic graph to load (default: 0. Only used with --graph synthetic).',
+    )
+    parser.add_argument(
+        '--seeds',
+        type=int,
+        default=100,
+        help='Number of seeds to run (default: 100).',
+    )
+    parser.add_argument(
+        '--flips',
+        type=int,
+        nargs='+',
+        default=[2, 3],
+        help='One or more values of flips per iteration (default: 2 3).',
+    )
+    parser.add_argument(
+        '--jobs',
+        type=int,
+        default=12,
+        help='Number of parallel jobs (default: 12).',
+    )
+    return parser.parse_args()
+
+args = arg_parse()
+
+if args.graph == 'synthetic':
+    data_file = f'{ROOT}/Synthetic_graphs/Synthetic{args.synthetic_id}.pkl'
+    output_prefix = f'Synth{args.synthetic_id}'
+else:
+    data_file = f'{ROOT}/Dataframe_previ.pkl'
+    output_prefix = 'Real'
+
+european = pandas.read_pickle(data_file)
 
 start = time.time()
 #the pkl file contains all the neighbour-node relationships encoded in the VESINS column
-european = pandas.read_pickle(r'/home/sergi/Documents/Dataframe_previ.pkl') #this path works for me, likely won't work for you
 
 #this libpysal part is only used to plot graph.png
 #the annealing part builds the graph using the pkl file
 centroids = np.column_stack((european.centroid.x, european.centroid.y))
-    
+
 w_rook = Rook.from_dataframe(european, use_index = False)
     
 w_knn3 = KNN.from_dataframe(european, k=3)
@@ -60,7 +110,7 @@ f,ax = w_attach.plot(european, ax=ax,
         edge_kws=dict(color='r', linestyle=':', linewidth=1),
         node_kws=dict(marker=''))
 ax.set_axis_off() #plots the underlying graph
-filename3 = 'graph.png'
+filename3 = f'{ROOT}/synthgraph{args.synthetic_id}.png' if args.graph == 'synthetic' else f'{ROOT}/graph.png'
 plt.savefig(filename3, dpi = 300, bbox_inches='tight')
 plt.close()
 
@@ -269,23 +319,20 @@ def accepta_rebutja(desviacio_nova, desviacio,
     return matriu_vella
 
 
-directory = 'Solutions'
+directory = f'{ROOT}/SynthSolutions' if args.graph == 'synthetic' else f'{ROOT}/Solutions'
 os.makedirs(directory, exist_ok = True)
 print(f'Solution data will be stored in {directory} folder')
 
-maps_folder = 'Maps'
+maps_folder = f'{ROOT}/SynthMaps' if args.graph == 'synthetic' else f'{ROOT}/Maps'
 os.makedirs(maps_folder, exist_ok = True)
 print(f'Maps will be stored in {maps_folder} folder')
-
-convergence_folder = 'Convergence'
-os.makedirs(convergence_folder, exist_ok = True)
-print(f'Convergence plots will be stored in {convergence_folder} folder')
 
 ##########################
 #Annealing implementation#
 ##########################
 
-def annealing(n, flips, adj, territory_id, populations, european):
+def annealing(n, flips, adj, territory_id, populations, european, output_prefix, 
+              directory, maps_folder):
     '''
     Main programs. Performs the annealing
     
@@ -309,12 +356,13 @@ def annealing(n, flips, adj, territory_id, populations, european):
     None.
 
     '''
-    sol_dir = f'{directory}/{flips}flips'
-    map_dir = f'{maps_folder}/{flips}flips'
-    conver_dir = f'{convergence_folder}/{flips}flips'
+    sol_dir = f'{directory}/{output_prefix}/{flips}flips'
+    map_dir = f'{maps_folder}/{output_prefix}/{flips}flips'
+    
+    #conver_dir = f'{convergence_folder}/{flips}flips'
     os.makedirs(sol_dir, exist_ok = True)
     os.makedirs(map_dir, exist_ok = True)
-    os.makedirs(conver_dir, exist_ok = True)
+    #os.makedirs(conver_dir, exist_ok = True)
     seed = n
     np.random.seed(seed)
     random.seed(seed)
@@ -388,20 +436,8 @@ def annealing(n, flips, adj, territory_id, populations, european):
     totals = pandas.DataFrame({'TERRITORY_ID': range(1, 8), 'Membres': stored_agregat[0], 'Poblacio': stored_agregat[1],
                                    'Desviacio': stored_agregat[2]})
     totals.to_pickle(f'{sol_dir}/Totals_seed{seed}_iter{n_iter}_{flips}flips.pkl')
-            
-    plt.figure()
-    # Subplot posició x
-    plt.grid(True)
-    plt.title('Convergence')
-    plt.xlabel('Iteration number')
-    plt.ylabel('Sum of deviations (inhabitants)')
-    plt.plot(x, y)
-    plt.tight_layout()
-    filename = f'{conver_dir}/convergence_seed{seed}_iter{n_iter}_ {flips}flips.png'
-    plt.savefig(filename)
-    plt.close()
-    
-    solucio = pandas.read_pickle(f'{directory}/{flips}flips/Repartiment_seed{seed}_iter{n_iter}_{flips}flips.pkl')
+
+    solucio = pandas.read_pickle(f'{sol_dir}/Repartiment_seed{seed}_iter{n_iter}_{flips}flips.pkl')
     
     ax = solucio.plot(column = 'TERRITORY_ID') #plots the 7 regions
     
@@ -410,16 +446,13 @@ def annealing(n, flips, adj, territory_id, populations, european):
     plt.savefig(filename2, dpi = 300, bbox_inches='tight')
     plt.close()
     
-seeds = range(0,100)
-flips = [1, 3, 7, 15, 25]
+seeds = range(0,args.seeds)
+flips = args.flips
 
-resultats = Parallel(n_jobs=12)(delayed(annealing)(seed, flip, adj.copy(), territory_id.copy(), populations.copy(), european.copy()) for seed in seeds for flip in flips)
-'''
-with cProfile.Profile() as pr:
-    annealing(0, 3, adj, territory_id, populations, european)
+resultats = Parallel(n_jobs=args.jobs)(delayed(annealing)
+                                (seed, flip, adj.copy(), territory_id.copy(), populations.copy(), european.copy(),
+                                 output_prefix, directory, maps_folder) 
+                                for seed in seeds for flip in flips)
 
-stats = pstats.Stats(pr)
-stats.sort_stats('cumulative').print_stats(20)
-'''
 end = time.time()
 print('Time elapsed:', end-start)

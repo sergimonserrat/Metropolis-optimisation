@@ -1,9 +1,163 @@
 # Graph partitioning using Metropolis optimisation
 A coding project that groups the provinces of Spain into 7 territories of equal population. Using the Metropolis algorithm, it divides a provincial map into 7 contiguous regions by minimising the deviation from the mean population. Solving this problem is important for electoral districting in some countries and might be useful in logistics and public administration.
 
+## How to run
+
+### Install requirements
+
+- **Python 3.12** or higher.
+- **Linux** recommended; should also work on macOS and Windows.
+
+```bash
+pip install -r Requirements.txt
+```
+
+### Run the pipeline
+
+The pipeline has four stages: **graph generation and analysis** (`Graph_generator.py`), **partitioning** (`Annealing.py`), **Hamming distances** (`Hamming.py`) and **results analysis** (`Flip_data.py`). Each script accepts `--graph real` for the case study or `--graph synthetic` for synthetic planar graphs.
+
+Please note that the number of nodes is hardcoded to 51. To change it, you must edit the files.
+
+#### Real case study (Spain provinces, 51 nodes)
+
+```bash
+# Graph analysis
+python3.12 Graph_generator.py --graph real
+
+# Simulated annealing
+python3.12 Annealing.py --graph real --seeds 100 --flips 2 3
+
+# Hamming distances between solutions
+python3.12 Hamming.py --graph real
+
+# Analysis
+python3.12 Flip_data.py --graph real
+```
+
+#### Synthetic planar graphs (Voronoi graphs, 51 nodes)
+
+```bash
+# Generate synthetic graphs and analyse them
+python3.12 Graph_generator.py --graph synthetic --n_graphs 20
+
+# Annealing
+python3.12 Annealing.py --graph synthetic --synthetic-id 0 --seeds 100 --flips 3
+python3.12 Annealing.py --graph synthetic --synthetic-id 1 --seeds 100 --flips 3
+
+# Hamming distances
+python3.12 Hamming.py --graph synthetic --folders Synth0 Synth1
+
+# Analysis
+python3.12 Flip_data.py --graph synthetic --folders Synth0 Synth1
+```
+
+### Script options
+
+#### `Graph_generator.py`
+
+| Option | Description | Default |
+|---|---|---|
+| `--graph` | `real` or `synthetic` | `synthetic` |
+| `--n_graphs` | Number of synthetic graphs to generate | `20` |
+
+#### `Annealing.py`
+
+| Option | Description | Default |
+|---|---|---|
+| `--graph` | `real` or `synthetic` | `synthetic` |
+| `--synthetic-id` | ID of the synthetic graph | `0` |
+| `--seeds` | Number of seeds | `100` |
+| `--flips` | Flips per iteration (one or more) | `2 3` |
+| `--jobs` | Parallel jobs | `12` |
+
+> `n_iter = 10000` is hardcoded in `Annealing.py`. To change it, edit the file.
+
+#### `Hamming.py`
+
+| Option | Description | Default |
+|---|---|---|
+| `--graph` | `real` or `synthetic` | `synthetic` |
+| `--folders` | List of graphs to analyse | all |
+| `--jobs`| Parallel jobs | `12` |
+
+#### `Flip_data.py`
+
+| Option | Description | Default |
+|---|---|---|
+| `--graph` | `real` or `synthetic` | `synthetic` |
+| `--folders` | List of graphs to analyse | all |
+| `--jobs`| Parallel jobs | `12` |
+
+### Approximate runtimes
+
+| Stage | Time |
+|---|---|
+| `Graph_generator.py` | a few minutes |
+| `Annealing.py` (100 seeds, 5 flips values) | ~30 min |
+| `Hamming.py` (100 solutions) | ~5 min |
+| `Flip_data.py` | a few minutes |
+
+Runtimes for Intel-core i5-12500H using 12 parallel jobs.
+
+### Notes
+
+- **`Dataframe_previ.pkl`** must be at the project root for the real case study. It contains the 51 Spanish provinces with their populations, adjacencies and geometry.
+- Outputs are created in the same folder where the files are run. It is strongly recommended to place all files in the same root to avoid errors.
+- Running part of the pipeline without having run the previous steps may result in errors due to files or folders not being found.
+
+## Generated outputs
+
+Running the pipeline creates the following folders and files.
+
+### Graph generation and analysis (`Graph_generator.py`)
+
+| Folder / file | Content |
+|---|---|
+| `Synthetic_graphs/Synthetic{synthetic_id}.pkl` | Synthetic planar graph with 51 nodes. `POPULATION` is log-normal distributed. `TERRITORY_ID` denotes belonging to a region (is generated as 0), `geometry` is the geometry, `geometry_point` is the centroid. |
+| `ccdf_poblacions.png` | CCDF (complementary cumulative distribution) of the populations, log-log plot. Generated with `--graph real`. |
+| `posterior_lognormal.png` | Posterior distributions of `mu` and `sigma` from the LogNormal fit (PyMC) to the populations. Generated with `--graph real`. |
+
+### Partitioning (`Annealing.py`)
+
+| Folder / file | Content |
+|---|---|
+| `Solutions/Real/{flips}flips/` | `Repartiment_seed{seed}_iter10000_{flips}flips.pkl` (map configuration) and `Totals_seed{seed}_iter10000_{flips}flips.pkl` (aggregate data per region) for the real case. |
+| `SynthSolutions/Synth{synthetic_id}/{flips}flips/` | Same files, for each synthetic graph. |
+| `Maps/Real/{flips}flips/` | `map_seed{seed}_iter10000_{flips}flips.png` (solution map) for the real case. |
+| `SynthMaps/Synth{synthetic_id}/{flips}flips/` | Same maps, for each synthetic graph. |
+| `graph.png` / `synthgraph{synthetic_id}.png` | Plot of the underlying graph (rook connectivity + islands attached via 3-NN). |
+
+### Hamming distances (`Hamming.py`)
+
+| Folder / file | Content |
+|---|---|
+| `Distances/{graph}/Hamming_{flips}flips.npy` | Symmetric distance matrix between all pairs of solutions (minimum Hamming distance over the 5040 relabellings of 7 regions). |
+| `Histograms/{graph}/Hamming_{flips}flips.png` | Histogram of the upper triangle of the distance matrix. |
+
+Where `{graph}` is `Real` or `Synth{synthetic_id}`.
+
+### Results analysis (`Flip_data.py`)
+
+| Folder / file | Content |
+|---|---|
+| `Flip_data_{graph}.pkl` | DataFrame with the energy (sum of deviations from the mean population) per (`seed`, `flips`) combination |
+| `Energy_vs_flips_{graph}.png` | Mean energy vs flips per iteration, with SEM error bars. |
+| `AvgHamming_vs_flips_{graph}.png` | Mean Hamming distance between solutions vs flips per iteration, with 1-std error bars. |
+| `Minimum_Hamming_{graph}.png` | Histogram of Hamming distances between the minimum-energy configurations (only generated if there is > 1 minimum). |
+| `Optimal_maps/{graph}/map_seed{seed}_iter10000_{flips}flips.png` | Copies of the maps corresponding to the lowest energy configuration(s). |
+
+Where `{graph}` is `Real` or `Synth{synthetic_id}`.
+
+### Notes
+
+- `Minimum_Hamming_{graph}.png` is skipped if there is only one solution with the lowest energy (the real case has degeneracy because populations are integer, but synthetic populations are float).
+
 ## Repository structure:
 - `Report.pdf`: report summarising the findings of this project.
-- `Annealing.py`: Main code
+- `Graph_generator.py`: generates synthetic planar graphs. With `--graph real` it analyses graph metrics, the population CCDF (to show nodes are not power-law weighted), and computes the best LogNormal parameters with Bayesian methods.
+- `Annealing.py`: plants seeds and populates the map, proposes flips with contiguity checks, and saves the resulting configuration.
+- `Hamming.py`: computes Hamming distances between all pairs of solutions (accounting for region relabelling) and saves distance matrices and histograms.
+- `Flip_data.py`: analyses results by flips (mean energy, mean Hamming distance), and saves the optimal configuration(s) out of all the (seeds, flips) combinations.
 - `Dataframe_previ.pkl`: Graph and population data. 
 
 | Column | Type | Description |
@@ -18,70 +172,17 @@ A coding project that groups the provinces of Spain into 7 territories of equal 
 
 - `Requirements.txt`: list of necessary libraries and their versions.
 - `README.md`: this file.
-- `Convergence`: folder with plots showing how the optimiser converges.
-- `Solutions`: folder containing .pkl files describing the partition of seeds 0-9.
-  - `Repartiment_seed[seed_number]_iter[number_of_iterations]_[flips/iteration]flips.pkl`: Dataframes with the same structure than `Dataframe_previ.pkl` where TERRITORY_ID has been filled with integers 1-7.
-  - `Totals_seed[seed_number]_iter[number_of_iterations]_[flips/iteration]flips.pkl`: Aggregate dataframes detailing the population of the 7 regions and their deviation from the mean.
-
-  | Column | Type | Description |
-  |---|---|---|
-  | TERRITORY_ID | integer | ID number (1-7) of the region the province belongs to. |
-  | Membres | integer | Number of provinces with the same TERRITORY_ID |
-  | Poblacio | integer | Population of the region |
-  | Desviacio | float | Deviation from the mean |
-
-- `Maps`: folder containing .png files with the solution maps of seeds 0-99. They are stored with the naming convention `Map_seed[seed_number]_iter[number_of_iterations]_[flips/iteration]flips.pkl`.
-- `Optimal_maps`: folder with the 15 maps with the most optimal configuration. 
-- `Distances`: folder with the distance matrices in `.npy` format.
-- `graph.png`: plot showing how the provinces are connected
-- `Hamming.py`: auxiliary code that computes the Hamming distance between solutions.
-- `Histograms`: folder containing histograms of all the Hamming distances between pairs of solutions with seeds 0-99 for a given number of flips/iteration.
-- `Flip_data.py`: auxiliary code used to analyse the results grouped by number of flips/iteration. 
-- `Energy_vs_flips.png`: plot of the average energy for every value of `flips`.
-- `Flip_data.pkl`: dataframe with the energy for each combination of (`seed`, `flips`).
-
-| Column | Type | Description |
-|---|---|---|
-| Energy | float | Energy. |
-| Seed | int | Seed. |
-| Flips | int | Number of flips per iteration. |
-
-- `Minimum_Hamming.png`: histogram of Hamming distances between the 15 optimal configurations.
-- `regions_comunes.png`: map with the 3 regions shared by 14 out of the 15 optimal configurations.
-
-## Code description 
-`Projecte_geopandas_v3.py`:
-- Number of seeds and number of flips/iteration can be chosen as parameters.
-- Create a graph with rook connectivity using libpysal.
-- Attach islands using 3 nearest neighbours.
-- Plant seeds for each territory and expand them until they occupy the map. 
-- Flips are proposed. Connectivity is checked to ensure the regions are contiguous. Metropolis algorithm is implemented with an exponential temperature decrease schedule.
-- Creates the folders `Maps`, `Solutions` and `Convergence` if they do not already exist.
-- Best map configuration is saved as `Repartiment_seed[seed_number]_iter[number_of_iterations]_[flips/iteration]flips.pkl` and the aggregate data for each TERRITORY_ID is stored in `Totals_seed[seed_number]_iter[number_of_iterations]_[flips/iteration]flips.pkl`. Both files are stored in the `Solutions` folder. Each value of `flips` generates a subfolder inside `Solutions`.
-- Create 3 plots for a given seed: one for the graph `graph.png`; one for the map configuration `Map_seed[seed_number]_iter[number_of_iterations]_[flips/iteration]flips.pkl`, stored in the folder `Maps`, and one for the convergence `Convergence_seed[seed_number]_iter[number_of_iterations]_[flips/iteration]flips.pkl`, stored in the folder `Convergence`.
-
-`Hamming.py`: 
-- Computes the Hamming distance between all pairs of solutions stored in the folder `Solutions`.
-- Builds a distance matrix and a histogram `Hamming_100_seeds.png` of the distances.
-- Performs a non-metric (`metric_mds = False`) 3D MDS `sol_landscape_[flips/iteration]flips.png` to visualise the space of solutions.
-- Distance matrices are stored in the `Distances` folder.
-
-`Flip_data.py`:
-- Creates `flip_data.pkl`, a dataframe with the energy of every combination of `seed` and `flips`.
-- Analyses the mean energy of each value of `flips`to find.
-- Finds the (`seed`, `flips`) with the lowest energy and verifies that they are all distinct. Generates the corresponding histogram `Minimum_Hamming.png`.
-- Loads the distance matrices generated by `Hamming.py` and computes the mean, standard deviation, and Q1 and Q3 quartiles.
 
 ## Results and conclusions
 - Most solutions are separated by 20-25 flips, which supports the hypothesis of many separated local minima. In fact, the average Hamming distance is around 22-23 flips. This is further discussed in `Report.pdf`. It is an argument in favour of building a quantum version of this optimisation problem that takes advantage of tunneling, if possible.
 - 3 flips per iteration gives the lowest average energy, but the difference is not statistically significant compared to 2 or 4 flips.
-- The lowest energy found is 244039 inhabitants. This optimal energy is shared by 15 different configurations, of which 14 share the same 3 regions, whereas the remaining one only shares 2.
+- Unisng the real graph case, the lowest energy found is 244039 inhabitants. This optimal energy is shared by 15 different configurations, of which 11 share the same 3 regions, whereas the rest only share 2.
+- The real case study has been succesfully generalised to planar graphs with log-normal weighted nodes, according to preliminary results.
 
 ## Future improvements
 In its current form the code has deficiencies for what it is already doing. These are some things this project could do better:
 
-- **Characterise the graph**: Study the basic features of the graph and classifying it into one or more categories. The graph is suspected to be sparse. Attempt to generalise this case study to synthetic sparse graphs with power-law weighted nodes.
-- **Study of scalability**: how does the problem behave with a larger number of nodes? Either synthetic graphs or the entire NUTS3 regions could be used in the study. Is the problem manageable is the number of regions is increased?
+- **Study of scalability**: how does the problem behave with a larger number of nodes? Either synthetic graphs or the entire NUTS3 regions could be used in the study. Is the problem manageable if the number of regions is increased?
 - **Rigidity of the initial state**. The initial state fixes the amount of territories to 7 therefore there is no phase transition. Changing the energy function so it encourages the formation of 7 territories at low temperature would produce richer phenomena. Implementing an updated version with phase transitions will require the definition of an order parameter, a susceptibility and a correlation length.
 - **Building a quantum version**. This is an NP-hard problem. Taking advantage of quantum tunneling should outperform the classical approach. On top of this, it is possible that the system exhibits phase transitions without a classical analogue and/or non-classical correlations (such as entanglement).
 - **Study of correlations**. The best configurations share 3 out of 7 regions. That is a strong correlation. Which regions appear together more often in the catalog of solutions? Can a consensus graph be built aggregating the correlations of the entire catalog of solutions in this repository?

@@ -1,3 +1,14 @@
+*.png
+Flip_data*.pkl
+*.npy
+Solutions/
+Maps/
+Distances/
+Histograms/
+Optimal_maps/
+SynthSolutions/
+SynthMaps/
+Synthetic_graphs
 *Solution_landscape*
 Graph_analysis.py
 Minimum.py
