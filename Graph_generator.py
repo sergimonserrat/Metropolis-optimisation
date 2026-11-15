@@ -41,7 +41,7 @@ def arg_parse():
 
 args = arg_parse()
 if args.graph == 'synthetic':
-    directory = '{ROOT}/Synthetic_graphs'
+    directory = f'{ROOT}/Synthetic_graphs'
     os.makedirs(directory, exist_ok = True)
     
     comptador = 0
