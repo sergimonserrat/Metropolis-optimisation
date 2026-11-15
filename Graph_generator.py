@@ -86,7 +86,7 @@ elif args.graph == 'real':
     file = f'{ROOT}/Dataframe_previ.pkl'
 
     #the pkl file contains all the neighbour-node relationships encoded in the VESINS column
-    european = pandas.read_pickle(r'/home/sergi/Documents/Dataframe_previ.pkl') #this path works for me, likely won't work for you
+    european = pandas.read_pickle(file) #this path works for me, likely won't work for you
         
     w_rook = Rook.from_dataframe(european, use_index = False)
         
