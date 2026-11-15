@@ -158,7 +158,7 @@ elif args.graph == 'real':
     plt.tight_layout()
     plt.savefig(f'{ROOT}/ccdf_poblacions.png', dpi=300)
     plt.show()
-
+    plt.close()
     log_population = np.log(populations)
 
     with pymc.Model() as model:
@@ -201,6 +201,6 @@ elif args.graph == 'real':
     plt.tight_layout()
     plt.savefig(f'{ROOT}/posterior_lognormal.png', dpi=300)
     plt.show()
-
+    plt.close()
     print(f'Posterior mu: {MCMC.posterior['mu'].mean().values:.2f} ± {MCMC.posterior['mu'].std().values:.2f}')
     print(f'Posterior sigma: {MCMC.posterior['sigma'].mean().values:.2f} ± {MCMC.posterior['sigma'].std().values:.2f}')
